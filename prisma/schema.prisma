@@ -1,0 +1,150 @@
+// Prisma schema for sewing workshop platform
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  SEAMSTRESS
+}
+
+enum WorkStatus {
+  TAKEN       // швея взяла крій
+  COMPLETED   // швея здала, очікує прийому
+  ACCEPTED    // адмін прийняв, нараховано до виплати
+  REJECTED    // брак, повернуто на переробку
+  PAID        // виплачено
+}
+
+model User {
+  id          String    @id @default(cuid())
+  phone       String    @unique
+  name        String
+  pinHash     String
+  role        Role      @default(SEAMSTRESS)
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  workItems   WorkItem[]
+  payments    Payment[]
+}
+
+model Model {
+  id              String         @id @default(cuid())
+  article         String         @unique
+  name            String
+  photoUrl        String?
+  sizes           String[]       // довільні розміри: ["S","M","L","XL"] або ["46","48","50"]
+  sewingPrice     Decimal        @db.Decimal(10, 2)  // ціна за відшив одиниці (швеї)
+  cuttingPrice    Decimal        @db.Decimal(10, 2)  // ціна за крій одиниці (закрійнику)
+  fabricPerUnitM  Decimal        @db.Decimal(10, 3)  // метрів тканини на одиницю
+  active          Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+
+  services        ModelService[]
+  cuttingBatches  CuttingBatch[]
+}
+
+model ModelService {
+  id        String   @id @default(cuid())
+  modelId   String
+  name      String
+  price     Decimal  @db.Decimal(10, 2)
+  model     Model    @relation(fields: [modelId], references: [id], onDelete: Cascade)
+}
+
+// Партія крою — закрійник нарізав N штук моделі по розмірах
+model CuttingBatch {
+  id          String          @id @default(cuid())
+  modelId     String
+  createdAt   DateTime        @default(now())
+  note        String?
+
+  model       Model           @relation(fields: [modelId], references: [id])
+  sizes       BatchSize[]
+  workItems   WorkItem[]
+}
+
+// Залишки крою по розмірах в межах партії
+model BatchSize {
+  id          String        @id @default(cuid())
+  batchId     String
+  size        String
+  initialQty  Int           // скільки нарізали
+  remainingQty Int          // скільки лишилось (зменшується коли швея бере)
+
+  batch       CuttingBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, size])
+}
+
+// Робота швеї — взяла крій певного розміру
+model WorkItem {
+  id              String      @id @default(cuid())
+  seamstressId    String
+  batchId         String
+  size            String
+  qty             Int
+  status          WorkStatus  @default(TAKEN)
+  takenAt         DateTime    @default(now())
+  completedAt     DateTime?
+  acceptedAt      DateTime?
+  paidAt          DateTime?
+  paymentId       String?
+  amount          Decimal?    @db.Decimal(10, 2)  // зафіксована сума на момент прийому
+  note            String?
+
+  seamstress      User        @relation(fields: [seamstressId], references: [id])
+  batch           CuttingBatch @relation(fields: [batchId], references: [id])
+  payment         Payment?    @relation(fields: [paymentId], references: [id])
+}
+
+// Виплата за робочий тиждень
+model Payment {
+  id            String     @id @default(cuid())
+  seamstressId  String
+  weekStart     DateTime   // понеділок
+  weekEnd       DateTime   // неділя
+  amount        Decimal    @db.Decimal(10, 2)
+  paidAt        DateTime   @default(now())
+  note          String?
+
+  seamstress    User       @relation(fields: [seamstressId], references: [id])
+  workItems     WorkItem[]
+}
+
+// Тканини — надходження і залишки
+model Fabric {
+  id            String    @id @default(cuid())
+  name          String
+  totalMeters   Decimal   @db.Decimal(10, 2)
+  remainingM    Decimal   @db.Decimal(10, 2)
+  pricePerMeter Decimal   @db.Decimal(10, 2)
+  totalCost     Decimal   @db.Decimal(10, 2)
+  createdAt     DateTime  @default(now())
+  note          String?
+}
+
+// Витрати на цех (оренда, комуналка)
+model Expense {
+  id        String       @id @default(cuid())
+  type      ExpenseType
+  amount    Decimal      @db.Decimal(10, 2)
+  periodStart DateTime
+  periodEnd   DateTime
+  note      String?
+  createdAt DateTime     @default(now())
+}
+
+enum ExpenseType {
+  RENT
+  UTILITIES
+  OTHER
+}

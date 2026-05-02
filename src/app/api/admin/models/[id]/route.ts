@@ -1,0 +1,68 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/auth';
+
+const updateSchema = z.object({
+  article: z.string().min(1),
+  name: z.string().min(1),
+  photoUrl: z.string().optional().nullable(),
+  sizes: z.array(z.string().min(1)).min(1),
+  sewingPrice: z.string().or(z.number()),
+  cuttingPrice: z.string().or(z.number()),
+  fabricPerUnitM: z.string().or(z.number()),
+  services: z
+    .array(z.object({ id: z.string().optional(), name: z.string().min(1), price: z.string().or(z.number()) }))
+    .optional()
+    .default([]),
+});
+
+export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+  await requireAdmin();
+  const data = await req.json();
+  const parsed = updateSchema.safeParse(data);
+  if (!parsed.success) return NextResponse.json({ error: 'Невірні дані' }, { status: 400 });
+  const d = parsed.data;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.model.update({
+        where: { id: params.id },
+        data: {
+          article: d.article,
+          name: d.name,
+          photoUrl: d.photoUrl || null,
+          sizes: d.sizes,
+          sewingPrice: Number(d.sewingPrice),
+          cuttingPrice: Number(d.cuttingPrice),
+          fabricPerUnitM: Number(d.fabricPerUnitM),
+        },
+      });
+      // Простий підхід: видаляємо всі дод. послуги і створюємо заново
+      await tx.modelService.deleteMany({ where: { modelId: params.id } });
+      if (d.services.length > 0) {
+        await tx.modelService.createMany({
+          data: d.services.map((s) => ({
+            modelId: params.id,
+            name: s.name,
+            price: Number(s.price),
+          })),
+        });
+      }
+    });
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    if (e.code === 'P2002') return NextResponse.json({ error: 'Артикул існує' }, { status: 400 });
+    return NextResponse.json({ error: 'Помилка' }, { status: 500 });
+  }
+}
+
+export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+  await requireAdmin();
+  // М'яке видалення — модель залишається в історії
+  await prisma.model.update({
+    where: { id: params.id },
+    data: { active: false },
+  });
+  return NextResponse.json({ ok: true });
+}
