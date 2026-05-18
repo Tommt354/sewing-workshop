@@ -9,6 +9,7 @@ type Model = {
   article: string;
   name: string;
   sizes: string[];
+  colors: string[];
   photoUrl: string | null;
 };
 
@@ -16,6 +17,7 @@ export default function NewCuttingPage() {
   const router = useRouter();
   const [models, setModels] = useState<Model[]>([]);
   const [selected, setSelected] = useState<Model | null>(null);
+  const [color, setColor] = useState('');
   const [qtys, setQtys] = useState<Record<string, string>>({});
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
@@ -30,6 +32,7 @@ export default function NewCuttingPage() {
 
   function pickModel(m: Model) {
     setSelected(m);
+    setColor(m.colors[0] || '');
     const init: Record<string, string> = {};
     m.sizes.forEach((s) => (init[s] = ''));
     setQtys(init);
@@ -45,11 +48,20 @@ export default function NewCuttingPage() {
       setError('Введіть хоча б одну кількість');
       return;
     }
+    if (selected.colors.length > 0 && !color) {
+      setError('Виберіть колір');
+      return;
+    }
     setLoading(true);
     const res = await fetch('/api/admin/cutting', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ modelId: selected.id, sizes, note }),
+      body: JSON.stringify({
+        modelId: selected.id,
+        color,
+        sizes,
+        note,
+      }),
     });
     if (!res.ok) {
       const d = await res.json();
@@ -88,9 +100,7 @@ export default function NewCuttingPage() {
           />
           {filtered.length === 0 ? (
             <div className="text-center py-8 text-slate-500">
-              {models.length === 0
-                ? 'Спочатку створіть модель'
-                : 'Нічого не знайдено'}
+              {models.length === 0 ? 'Спочатку створіть модель' : 'Нічого не знайдено'}
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 gap-3">
@@ -116,6 +126,11 @@ export default function NewCuttingPage() {
                     <div className="text-xs text-slate-400 mt-1">
                       {m.sizes.join(', ')}
                     </div>
+                    {m.colors.length > 0 && (
+                      <div className="text-xs text-amber-700 mt-0.5">
+                        Кольори: {m.colors.join(', ')}
+                      </div>
+                    )}
                   </div>
                 </button>
               ))}
@@ -145,8 +160,32 @@ export default function NewCuttingPage() {
             </button>
           </div>
 
+          {selected.colors.length > 0 && (
+            <div>
+              <label className="text-sm font-medium block mb-2">Колір</label>
+              <div className="flex flex-wrap gap-2">
+                {selected.colors.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setColor(c)}
+                    className={`px-4 py-2 rounded-lg text-sm border-2 transition ${
+                      color === c
+                        ? 'border-brand-600 bg-brand-50 text-brand-700 font-medium'
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div>
-            <label className="text-sm font-medium block mb-2">Кількості по розмірах</label>
+            <label className="text-sm font-medium block mb-2">
+              Кількості по розмірах
+            </label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {selected.sizes.map((s) => (
                 <label key={s} className="block">
@@ -166,7 +205,7 @@ export default function NewCuttingPage() {
           </div>
 
           <label className="block">
-            <span className="text-sm font-medium">Примітка (необов'язково)</span>
+            <span className="text-sm font-medium">Примітка (необовʼязково)</span>
             <input
               type="text"
               value={note}

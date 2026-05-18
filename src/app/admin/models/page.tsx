@@ -80,6 +80,18 @@ export default async function ModelsPage() {
                       </span>
                     ))}
                   </div>
+                  {m.colors && m.colors.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {m.colors.map((c) => (
+                        <span
+                          key={c}
+                          className="text-xs bg-amber-50 text-amber-800 px-2 py-0.5 rounded"
+                        >
+                          {c}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </Link>
             );

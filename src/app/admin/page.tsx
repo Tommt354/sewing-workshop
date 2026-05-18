@@ -3,7 +3,6 @@ import { prisma } from '@/lib/prisma';
 import { formatUAH, getWeekStart, getWeekEnd, formatWeekRange } from '@/lib/utils';
 
 export default async function AdminDashboard() {
-  // Залишки крою — головна таблиця
   const batches = await prisma.cuttingBatch.findMany({
     include: {
       model: true,
@@ -12,11 +11,13 @@ export default async function AdminDashboard() {
     orderBy: { createdAt: 'desc' },
   });
 
-  // Згорнемо в карту: model → size → remaining
+  // Згортаємо по (model, color) → розмір → залишок
   type Row = {
+    key: string;
     modelId: string;
     article: string;
     name: string;
+    color: string;
     photoUrl: string | null;
     sizeMap: Map<string, { remaining: number; initial: number }>;
     totalRemaining: number;
@@ -24,17 +25,20 @@ export default async function AdminDashboard() {
 
   const rows = new Map<string, Row>();
   for (const b of batches) {
-    let row = rows.get(b.modelId);
+    const key = `${b.modelId}::${b.color || ''}`;
+    let row = rows.get(key);
     if (!row) {
       row = {
+        key,
         modelId: b.modelId,
         article: b.model.article,
         name: b.model.name,
+        color: b.color || '',
         photoUrl: b.model.photoUrl,
         sizeMap: new Map(),
         totalRemaining: 0,
       };
-      rows.set(b.modelId, row);
+      rows.set(key, row);
     }
     for (const s of b.sizes) {
       const cur = row.sizeMap.get(s.size) || { remaining: 0, initial: 0 };
@@ -45,21 +49,20 @@ export default async function AdminDashboard() {
     }
   }
 
-  const stockRows = Array.from(rows.values()).sort((a, b) => b.totalRemaining - a.totalRemaining);
+  const stockRows = Array.from(rows.values()).sort(
+    (a, b) => b.totalRemaining - a.totalRemaining
+  );
   const allSizes = Array.from(
     new Set(stockRows.flatMap((r) => Array.from(r.sizeMap.keys())))
   );
 
-  // Тиждень — сума до виплати
   const weekStart = getWeekStart();
   const weekEnd = getWeekEnd();
   const acceptedThisWeek = await prisma.workItem.findMany({
     where: { status: 'ACCEPTED', acceptedAt: { gte: weekStart, lte: weekEnd } },
-    include: { seamstress: true },
   });
   const toPay = acceptedThisWeek.reduce((sum, w) => sum + Number(w.amount || 0), 0);
 
-  // Залишок тканин
   const fabrics = await prisma.fabric.findMany();
   const totalFabricM = fabrics.reduce((s, f) => s + Number(f.remainingM), 0);
   const totalFabricCost = fabrics.reduce(
@@ -71,10 +74,11 @@ export default async function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Карточки зверху */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl p-5 shadow-sm border">
-          <div className="text-sm text-slate-500">До виплати ({formatWeekRange(weekStart, weekEnd)})</div>
+          <div className="text-sm text-slate-500">
+            До виплати ({formatWeekRange(weekStart, weekEnd)})
+          </div>
           <div className="text-2xl font-bold mt-1">{formatUAH(toPay)}</div>
           <Link href="/admin/payments" className="text-sm text-brand-600 mt-2 inline-block">
             Перейти до виплат →
@@ -87,17 +91,19 @@ export default async function AdminDashboard() {
         </div>
         <div className="bg-white rounded-xl p-5 shadow-sm border">
           <div className="text-sm text-slate-500">Закінчується крій</div>
-          <div className="text-2xl font-bold mt-1">{lowStock.length} моделей</div>
+          <div className="text-2xl font-bold mt-1">{lowStock.length} позицій</div>
           {lowStock.length > 0 && (
             <div className="text-xs text-amber-600 mt-1">
-              {lowStock.map((r) => r.name).slice(0, 3).join(', ')}
+              {lowStock
+                .map((r) => `${r.name}${r.color ? ` (${r.color})` : ''}`)
+                .slice(0, 3)
+                .join(', ')}
               {lowStock.length > 3 && '...'}
             </div>
           )}
         </div>
       </div>
 
-      {/* Головна таблиця залишків */}
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
         <div className="p-5 flex items-center justify-between flex-wrap gap-2">
           <h2 className="text-lg font-bold">Залишки крою</h2>
@@ -119,6 +125,7 @@ export default async function AdminDashboard() {
               <thead className="bg-slate-50 text-slate-600">
                 <tr>
                   <th className="text-left px-4 py-3">Модель</th>
+                  <th className="text-left px-4 py-3">Колір</th>
                   <th className="text-left px-4 py-3">Артикул</th>
                   {allSizes.map((s) => (
                     <th key={s} className="text-center px-3 py-3">
@@ -130,7 +137,7 @@ export default async function AdminDashboard() {
               </thead>
               <tbody>
                 {stockRows.map((r) => (
-                  <tr key={r.modelId} className="border-t hover:bg-slate-50">
+                  <tr key={r.key} className="border-t hover:bg-slate-50">
                     <td className="px-4 py-3 font-medium flex items-center gap-2">
                       {r.photoUrl && (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -141,6 +148,15 @@ export default async function AdminDashboard() {
                         />
                       )}
                       {r.name}
+                    </td>
+                    <td className="px-4 py-3">
+                      {r.color ? (
+                        <span className="text-xs bg-amber-50 text-amber-800 px-2 py-0.5 rounded">
+                          {r.color}
+                        </span>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-slate-500">{r.article}</td>
                     {allSizes.map((s) => {

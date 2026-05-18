@@ -8,11 +8,19 @@ const updateSchema = z.object({
   name: z.string().min(1),
   photoUrl: z.string().optional().nullable(),
   sizes: z.array(z.string().min(1)).min(1),
+  colors: z.array(z.string().min(1)).optional().default([]),
+  note: z.string().optional().nullable(),
   sewingPrice: z.string().or(z.number()),
   cuttingPrice: z.string().or(z.number()),
   fabricPerUnitM: z.string().or(z.number()),
   services: z
-    .array(z.object({ id: z.string().optional(), name: z.string().min(1), price: z.string().or(z.number()) }))
+    .array(
+      z.object({
+        id: z.string().optional(),
+        name: z.string().min(1),
+        price: z.string().or(z.number()),
+      })
+    )
     .optional()
     .default([]),
 });
@@ -33,12 +41,13 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
           name: d.name,
           photoUrl: d.photoUrl || null,
           sizes: d.sizes,
+          colors: d.colors,
+          note: d.note || null,
           sewingPrice: Number(d.sewingPrice),
           cuttingPrice: Number(d.cuttingPrice),
           fabricPerUnitM: Number(d.fabricPerUnitM),
         },
       });
-      // Простий підхід: видаляємо всі дод. послуги і створюємо заново
       await tx.modelService.deleteMany({ where: { modelId: params.id } });
       if (d.services.length > 0) {
         await tx.modelService.createMany({
@@ -59,7 +68,6 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   await requireAdmin();
-  // М'яке видалення — модель залишається в історії
   await prisma.model.update({
     where: { id: params.id },
     data: { active: false },

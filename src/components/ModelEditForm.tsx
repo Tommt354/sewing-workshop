@@ -12,6 +12,8 @@ type Props = {
     name: string;
     photoUrl: string | null;
     sizes: string[];
+    colors: string[];
+    note: string | null;
     sewingPrice: number;
     cuttingPrice: number;
     fabricPerUnitM: number;
@@ -27,15 +29,44 @@ export function ModelEditForm({ model }: Props) {
     name: model.name,
     photoUrl: model.photoUrl || '',
     sizesText: model.sizes.join(', '),
+    note: model.note || '',
     sewingPrice: String(model.sewingPrice),
     cuttingPrice: String(model.cuttingPrice),
     fabricPerUnitM: String(model.fabricPerUnitM),
   });
+  const [colors, setColors] = useState<string[]>([...model.colors]);
+  const [newColor, setNewColor] = useState('');
   const [services, setServices] = useState<Service[]>(
     model.services.map((s) => ({ id: s.id, name: s.name, price: String(s.price) }))
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  function addColor() {
+    const c = newColor.trim();
+    if (!c || colors.includes(c)) {
+      setNewColor('');
+      return;
+    }
+    setColors([...colors, c]);
+    setNewColor('');
+  }
+
+  function removeColor(c: string) {
+    setColors(colors.filter((x) => x !== c));
+  }
+
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Фото більше 5 МБ');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setForm({ ...form, photoUrl: reader.result as string });
+    reader.readAsDataURL(file);
+  }
 
   async function save() {
     setError('');
@@ -50,6 +81,7 @@ export function ModelEditForm({ model }: Props) {
       body: JSON.stringify({
         ...form,
         sizes,
+        colors,
         services: services.filter((s) => s.name && s.price),
       }),
     });
@@ -88,6 +120,23 @@ export function ModelEditForm({ model }: Props) {
                 </span>
               ))}
             </div>
+            {model.colors.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {model.colors.map((c) => (
+                  <span
+                    key={c}
+                    className="text-xs bg-amber-50 text-amber-800 px-2 py-0.5 rounded"
+                  >
+                    {c}
+                  </span>
+                ))}
+              </div>
+            )}
+            {model.note && (
+              <div className="mt-3 text-sm text-slate-600 bg-amber-50 border border-amber-200 rounded p-2">
+                <span className="font-medium">Примітка:</span> {model.note}
+              </div>
+            )}
           </div>
           <button
             onClick={() => setEditing(true)}
@@ -118,13 +167,40 @@ export function ModelEditForm({ model }: Props) {
           />
         </Field>
       </div>
-      <Field label="Фото (URL)">
-        <input
-          type="url"
-          value={form.photoUrl}
-          onChange={(e) => setForm({ ...form, photoUrl: e.target.value })}
-        />
+
+      <Field label="Фото">
+        <div className="space-y-2">
+          {form.photoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={form.photoUrl}
+              alt=""
+              className="w-32 h-32 rounded-lg object-cover border"
+            />
+          )}
+          <div className="flex gap-2 items-center">
+            <label className="cursor-pointer border px-4 py-2 rounded-lg text-sm hover:bg-slate-50">
+              {form.photoUrl ? 'Замінити' : 'Завантажити'}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handlePhotoUpload}
+              />
+            </label>
+            {form.photoUrl && (
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, photoUrl: '' })}
+                className="text-sm text-red-500"
+              >
+                Видалити
+              </button>
+            )}
+          </div>
+        </div>
       </Field>
+
       <Field label="Розміри (через кому)">
         <input
           type="text"
@@ -132,6 +208,59 @@ export function ModelEditForm({ model }: Props) {
           onChange={(e) => setForm({ ...form, sizesText: e.target.value })}
         />
       </Field>
+
+      <div>
+        <label className="text-sm font-medium block mb-2">Кольори</label>
+        <div className="flex flex-wrap gap-2 mb-2">
+          {colors.map((c) => (
+            <span
+              key={c}
+              className="bg-slate-100 px-3 py-1 rounded-full text-sm flex items-center gap-2"
+            >
+              {c}
+              <button
+                type="button"
+                onClick={() => removeColor(c)}
+                className="text-slate-400 hover:text-red-500"
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={newColor}
+            onChange={(e) => setNewColor(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                addColor();
+              }
+            }}
+            placeholder="Додати колір"
+            className="flex-1 border rounded-lg px-3 py-2 text-sm"
+          />
+          <button
+            type="button"
+            onClick={addColor}
+            className="bg-slate-200 px-3 py-2 rounded-lg text-sm"
+          >
+            +
+          </button>
+        </div>
+      </div>
+
+      <Field label="Примітка для швей">
+        <textarea
+          value={form.note}
+          onChange={(e) => setForm({ ...form, note: e.target.value })}
+          placeholder="Особливості пошиття..."
+          className="w-full border rounded-lg px-3 py-2 min-h-[80px]"
+        />
+      </Field>
+
       <div className="grid sm:grid-cols-3 gap-3">
         <Field label="Ціна відшиву ₴">
           <input
@@ -158,6 +287,7 @@ export function ModelEditForm({ model }: Props) {
           />
         </Field>
       </div>
+
       <div>
         <div className="flex justify-between items-center mb-2">
           <span className="text-sm font-medium">Дод. послуги</span>
@@ -173,7 +303,11 @@ export function ModelEditForm({ model }: Props) {
             <input
               value={s.name}
               onChange={(e) =>
-                setServices(services.map((x, idx) => (idx === i ? { ...x, name: e.target.value } : x)))
+                setServices(
+                  services.map((x, idx) =>
+                    idx === i ? { ...x, name: e.target.value } : x
+                  )
+                )
               }
               placeholder="Назва"
               className="flex-1 border rounded-lg px-3 py-2"
@@ -183,7 +317,11 @@ export function ModelEditForm({ model }: Props) {
               step="0.01"
               value={s.price}
               onChange={(e) =>
-                setServices(services.map((x, idx) => (idx === i ? { ...x, price: e.target.value } : x)))
+                setServices(
+                  services.map((x, idx) =>
+                    idx === i ? { ...x, price: e.target.value } : x
+                  )
+                )
               }
               placeholder="₴"
               className="w-24 border rounded-lg px-3 py-2"
@@ -197,7 +335,9 @@ export function ModelEditForm({ model }: Props) {
           </div>
         ))}
       </div>
+
       {error && <div className="text-sm text-red-600">{error}</div>}
+
       <div className="flex gap-3">
         <button
           onClick={save}

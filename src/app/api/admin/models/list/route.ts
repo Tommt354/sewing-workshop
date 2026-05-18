@@ -6,7 +6,14 @@ export async function GET() {
   await requireAdmin();
   const models = await prisma.model.findMany({
     where: { active: true },
-    select: { id: true, article: true, name: true, sizes: true, photoUrl: true },
+    select: {
+      id: true,
+      article: true,
+      name: true,
+      sizes: true,
+      colors: true,
+      photoUrl: true,
+    },
     orderBy: { name: 'asc' },
   });
   return NextResponse.json({ models });

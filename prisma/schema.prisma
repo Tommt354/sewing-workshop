@@ -40,11 +40,13 @@ model Model {
   id              String         @id @default(cuid())
   article         String         @unique
   name            String
-  photoUrl        String?
-  sizes           String[]       // довільні розміри: ["S","M","L","XL"] або ["46","48","50"]
-  sewingPrice     Decimal        @db.Decimal(10, 2)  // ціна за відшив одиниці (швеї)
-  cuttingPrice    Decimal        @db.Decimal(10, 2)  // ціна за крій одиниці (закрійнику)
-  fabricPerUnitM  Decimal        @db.Decimal(10, 3)  // метрів тканини на одиницю
+  photoUrl        String?        // тепер може бути base64 data URL
+  sizes           String[]
+  colors          String[]       // кольори моделі: ["Чорний","Білий","Графіт"]
+  note            String?        // примітка для швей (як шити, особливості)
+  sewingPrice     Decimal        @db.Decimal(10, 2)
+  cuttingPrice    Decimal        @db.Decimal(10, 2)
+  fabricPerUnitM  Decimal        @db.Decimal(10, 3)
   active          Boolean        @default(true)
   createdAt       DateTime       @default(now())
 
@@ -60,10 +62,11 @@ model ModelService {
   model     Model    @relation(fields: [modelId], references: [id], onDelete: Cascade)
 }
 
-// Партія крою — закрійник нарізав N штук моделі по розмірах
+// Партія крою — закрійник нарізав N штук моделі певного кольору по розмірах
 model CuttingBatch {
   id          String          @id @default(cuid())
   modelId     String
+  color       String          @default("") // колір цієї партії (порожній = модель без кольорів)
   createdAt   DateTime        @default(now())
   note        String?
 
@@ -77,15 +80,15 @@ model BatchSize {
   id          String        @id @default(cuid())
   batchId     String
   size        String
-  initialQty  Int           // скільки нарізали
-  remainingQty Int          // скільки лишилось (зменшується коли швея бере)
+  initialQty  Int
+  remainingQty Int
 
   batch       CuttingBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
 
   @@unique([batchId, size])
 }
 
-// Робота швеї — взяла крій певного розміру
+// Робота швеї
 model WorkItem {
   id              String      @id @default(cuid())
   seamstressId    String
@@ -98,7 +101,7 @@ model WorkItem {
   acceptedAt      DateTime?
   paidAt          DateTime?
   paymentId       String?
-  amount          Decimal?    @db.Decimal(10, 2)  // зафіксована сума на момент прийому
+  amount          Decimal?    @db.Decimal(10, 2)
   note            String?
 
   seamstress      User        @relation(fields: [seamstressId], references: [id])
@@ -106,12 +109,11 @@ model WorkItem {
   payment         Payment?    @relation(fields: [paymentId], references: [id])
 }
 
-// Виплата за робочий тиждень
 model Payment {
   id            String     @id @default(cuid())
   seamstressId  String
-  weekStart     DateTime   // понеділок
-  weekEnd       DateTime   // неділя
+  weekStart     DateTime
+  weekEnd       DateTime
   amount        Decimal    @db.Decimal(10, 2)
   paidAt        DateTime   @default(now())
   note          String?
@@ -120,7 +122,6 @@ model Payment {
   workItems     WorkItem[]
 }
 
-// Тканини — надходження і залишки
 model Fabric {
   id            String    @id @default(cuid())
   name          String
@@ -132,7 +133,6 @@ model Fabric {
   note          String?
 }
 
-// Витрати на цех (оренда, комуналка)
 model Expense {
   id        String       @id @default(cuid())
   type      ExpenseType

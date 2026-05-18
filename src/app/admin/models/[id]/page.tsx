@@ -11,10 +11,9 @@ export default async function ModelDetailPage({ params }: { params: { id: string
   });
   if (!model) return notFound();
 
-  // Статистика по моделі
   const batches = await prisma.cuttingBatch.findMany({
     where: { modelId: model.id },
-    include: { sizes: true, workItems: true },
+    include: { sizes: true },
     orderBy: { createdAt: 'desc' },
   });
 
@@ -47,6 +46,8 @@ export default async function ModelDetailPage({ params }: { params: { id: string
           name: model.name,
           photoUrl: model.photoUrl,
           sizes: model.sizes,
+          colors: model.colors || [],
+          note: model.note,
           sewingPrice: Number(model.sewingPrice),
           cuttingPrice: Number(model.cuttingPrice),
           fabricPerUnitM: Number(model.fabricPerUnitM),
@@ -58,7 +59,6 @@ export default async function ModelDetailPage({ params }: { params: { id: string
         }}
       />
 
-      {/* Історія партій */}
       <div className="bg-white border rounded-xl overflow-hidden">
         <div className="px-5 py-3 border-b font-bold">Історія крою</div>
         {batches.length === 0 ? (
@@ -71,7 +71,12 @@ export default async function ModelDetailPage({ params }: { params: { id: string
               return (
                 <div key={b.id} className="p-4 flex flex-wrap gap-3 items-center">
                   <div className="flex-1">
-                    <div className="text-sm">
+                    <div className="text-sm flex items-center gap-2">
+                      {b.color && (
+                        <span className="text-xs bg-amber-50 text-amber-800 px-2 py-0.5 rounded">
+                          {b.color}
+                        </span>
+                      )}
                       {new Date(b.createdAt).toLocaleString('uk-UA')}
                     </div>
                     <div className="text-xs text-slate-500 mt-1">
