@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { requireAdmin } from '@/lib/auth';
 import { LogoutButton } from '@/components/LogoutButton';
+import { Logo } from '@/components/Logo';
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requireAdmin();
@@ -22,7 +23,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <div className="min-h-screen">
       <header className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="font-bold text-lg">Швейний цех · Адмін</div>
+          <div className="flex items-center gap-2.5">
+            <Logo size={32} />
+            <div className="font-bold text-lg">Швейний цех</div>
+          </div>
           <div className="flex items-center gap-3 text-sm">
             <span className="text-slate-500 hidden sm:inline">{session.name}</span>
             <LogoutButton />
