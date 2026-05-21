@@ -8,6 +8,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const nav = [
     { href: '/admin', label: 'Залишки' },
     { href: '/admin/cutting/new', label: 'Додати крій' },
+    { href: '/admin/in-progress', label: 'В роботі' },
+    { href: '/admin/history', label: 'Історія' },
     { href: '/admin/models', label: 'Моделі' },
     { href: '/admin/seamstresses', label: 'Швеї' },
     { href: '/admin/payments', label: 'Виплати' },
